@@ -31,7 +31,7 @@ class SimpleTokenizer:
 
         for i , word in enumerate(vocab):
             self.word2idx[word] = i +4 
-            self.idx2word[i] = word
+            self.idx2word[i+4] = word
     def encode(self, text, lang_type='en'):
         word = text.split() if lang_type =='en' else list(text)
         return [self.word2idx.get(w,3) for w in word]
@@ -57,9 +57,9 @@ class TranslationDataset(Dataset):
     
 def collate_fn(batch):
     src_batch, tgt_batch = [],[]
-    for src_batch , tge_batch in batch:
-        src_batch.append(src_batch)
-        tgt_batch.append(tge_batch)
+    for src_item , tgt_item in batch:
+        src_batch.append(src_item)
+        tgt_batch.append(tgt_item)
 
     src_padded = pad_sequence(src_batch, batch_first=True, padding_value=0)
     tgt_padded = pad_sequence(tgt_batch, batch_first=True, padding_value=0)
@@ -68,7 +68,7 @@ def collate_fn(batch):
 #============定義模型============#
 
 class Seq2SeqTransformer(nn.Module):
-    def __init_(self,
+    def __init__(self,
                 src_vocab_size,
                 tgt_vocab_size,
                 d_model=512,
@@ -83,7 +83,8 @@ class Seq2SeqTransformer(nn.Module):
         self.transformer = nn.Transformer(
             d_model=d_model,
             nhead=nhead,
-            num_layers=num_layers,
+            num_encoder_layers=num_layers,
+            num_decoder_layers=num_layers,
             dim_feedforward=2048,
             dropout=dropout,
             batch_first=True)
@@ -111,7 +112,7 @@ class Seq2SeqTransformer(nn.Module):
 #============訓練模型============#
 def train():
     BATCH_SIZE = 2
-    EPOCHS = 10
+    EPOCHS = 100
     LR = 0.0001
 
     dataset = TranslationDataset(raw_data, scr_tokenizer, tgt_tokenizer)
@@ -161,7 +162,6 @@ def translate(model,src_sentence):
     tgt_ids = [1]
 
     print(f"\n原文: {src_sentence}")
-    print("翻譯結果: ", end="")
 
     for i in range(20):
         tgt_tensor = torch.tensor(tgt_ids, dtype=torch.long).unsqueeze(0).to(device)
