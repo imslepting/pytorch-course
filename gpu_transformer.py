@@ -18,28 +18,29 @@ raw_data = [
 
 class SimpleTokenizer:
     def __init__(self, data, lang_idx):
-        self.word2idx = {"<PAD>":0, "<BOS>":1, "<EOS>":2, "<UNK>":3}
+        self.word2idx = {"<PAD>":0, "<BOS>":1, "<EOS>":2, "<UNK>":3} #padding, begin of sentence, end of sentence, unknown
         self.idx2word = {0:"<PAD>", 1:"<BOS>", 2:"<EOS>", 3:"<UNK>"}
         vocab = set()
         for pair in data:
             sentences = pair[lang_idx]
-            if lang_idx == 0:
-                words = sentences.split()
+            if lang_idx == 0: 
+                words = sentences.split() # English word tokenization
             else:
-                words = list(sentences)
+                words = list(sentences) # Chinese character tokenization
             vocab.update(words)
 
-        for i , word in enumerate(vocab):
-            self.word2idx[word] = i +4 
+        for i , word in enumerate(vocab): #把詞加入字典
+            self.word2idx[word] = i +4 # 0-3 已被padding, bos, eos, unk佔用
             self.idx2word[i+4] = word
     def encode(self, text, lang_type='en'):
         word = text.split() if lang_type =='en' else list(text)
-        return [self.word2idx.get(w,3) for w in word]
+        return [self.word2idx.get(w,3) for w in word] #找不到的字用<UNK>代替
     def decode(self, indices):
-        return "".join([self.idx2word.get(idx, "") for idx in indices if idx not in [0,1,2]])
+        # 因為中文字是單字，所以直接idx對應的字join到一個字串中
+        return "".join([self.idx2word.get(idx, "") for idx in indices if idx not in [0,1,2]]) #忽略padding, bos, eos
     
-scr_tokenizer = SimpleTokenizer(raw_data, 0)
-tgt_tokenizer = SimpleTokenizer(raw_data, 1)
+scr_tokenizer = SimpleTokenizer(raw_data, 0) #英文tokenizer source  
+tgt_tokenizer = SimpleTokenizer(raw_data, 1) #中文tokenizer target
 
 class TranslationDataset(Dataset):
     def __init__(self, data, src_tokenizer, tgt_tokenizer):
@@ -55,12 +56,13 @@ class TranslationDataset(Dataset):
         tgt_ids = [1] + self.tgt_tokenizer.encode(tgt_text, 'ch') + [2]
         return torch.tensor(src_ids, dtype=torch.long), torch.tensor(tgt_ids, dtype=torch.long)
     
-def collate_fn(batch):
+def collate_fn(batch): #用於DataLoader的自定義collate函數，處理batch中的padding
     src_batch, tgt_batch = [],[]
     for src_item , tgt_item in batch:
         src_batch.append(src_item)
         tgt_batch.append(tgt_item)
 
+    # 把序列padding到相同長度 shape=(batch_size, seq_len)
     src_padded = pad_sequence(src_batch, batch_first=True, padding_value=0)
     tgt_padded = pad_sequence(tgt_batch, batch_first=True, padding_value=0)
 
@@ -78,24 +80,24 @@ class Seq2SeqTransformer(nn.Module):
                 ):
         super().__init__()
         self.d_model = d_model
-        self.src_embedding = nn.Embedding(src_vocab_size,d_model)
+        self.src_embedding = nn.Embedding(src_vocab_size,d_model)  #embedding之後shape=(batch_size, seq_len, d_model)
         self.tgt_embedding = nn.Embedding(tgt_vocab_size,d_model)
-        self.transformer = nn.Transformer(
+        self.transformer = nn.Transformer( 
             d_model=d_model,
-            nhead=nhead,
-            num_encoder_layers=num_layers,
-            num_decoder_layers=num_layers,
+            nhead=nhead, #多頭注意力機制頭數
+            num_encoder_layers=num_layers, #3層encoder
+            num_decoder_layers=num_layers, #3層decoder
             dim_feedforward=2048,
             dropout=dropout,
             batch_first=True)
         
         self.fc_out = nn.Linear(d_model,tgt_vocab_size)
     def forward(self,src,tgt):
-        src_emb = self.src_embedding(src) * math.sqrt(self.d_model)
+        src_emb = self.src_embedding(src) * math.sqrt(self.d_model) 
         tgt_emb = self.tgt_embedding(tgt) * math.sqrt(self.d_model)
 
-        tgt_seq_len = tgt.size(1)
-        tgt_mask = self.transformer.generate_square_subsequent_mask(tgt_seq_len).to(device)
+        tgt_seq_len = tgt.size(1) #size(1)是序列長度
+        tgt_mask = self.transformer.generate_square_subsequent_mask(tgt_seq_len).to(device) 
 
         src_padding_mask = (src ==0)
         tgt_padding_mask = (tgt ==0)
