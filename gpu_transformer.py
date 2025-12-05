@@ -162,6 +162,7 @@ def translate(model,src_sentence):
     tgt_ids = [1]
 
     print(f"\n原文: {src_sentence}")
+    print("翻譯結果: ", end="")
 
     for i in range(20):
         tgt_tensor = torch.tensor(tgt_ids, dtype=torch.long).unsqueeze(0).to(device)
