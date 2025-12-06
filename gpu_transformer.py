@@ -33,7 +33,7 @@ class SimpleTokenizer:
             self.word2idx[word] = i +4 # 0-3 已被padding, bos, eos, unk佔用
             self.idx2word[i+4] = word
     def encode(self, text, lang_type='en'):
-        word = text.split() if lang_type =='en' else list(text)
+        word = text.split() if lang_type =='en' else list(text) #英文用空格切詞，中文直接切字 
         return [self.word2idx.get(w,3) for w in word] #找不到的字用<UNK>代替
     def decode(self, indices):
         # 因為中文字是單字，所以直接idx對應的字join到一個字串中
@@ -81,9 +81,9 @@ class Seq2SeqTransformer(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.src_embedding = nn.Embedding(src_vocab_size,d_model)  #embedding之後shape=(batch_size, seq_len, d_model)
-        self.tgt_embedding = nn.Embedding(tgt_vocab_size,d_model)
+        self.tgt_embedding = nn.Embedding(tgt_vocab_size,d_model)  #這裡決定transformer層的輸出shape
         self.transformer = nn.Transformer( 
-            d_model=d_model,
+            d_model=d_model, #embedding維度
             nhead=nhead, #多頭注意力機制頭數
             num_encoder_layers=num_layers, #3層encoder
             num_decoder_layers=num_layers, #3層decoder
@@ -91,6 +91,8 @@ class Seq2SeqTransformer(nn.Module):
             dropout=dropout,
             batch_first=True)
         
+        # 將 Transformer 的輸出形狀從 (batch_size, tgt_seq_len, d_model) 映射為
+        # (batch_size, tgt_seq_len, tgt_vocab_size)。
         self.fc_out = nn.Linear(d_model,tgt_vocab_size)
     def forward(self,src,tgt):
         src_emb = self.src_embedding(src) * math.sqrt(self.d_model) 
@@ -138,12 +140,18 @@ def train():
         total_loss = 0
         for src , tgt in dataloader:
             src , tgt = src.to(device), tgt.to(device)
-
-            tgt_input = tgt[:, :-1]
-            tgt_output = tgt[:, 1:]
+            # 假設tgt = {<BOS> ... <EOS>}輸入給decoder
+            tgt_input = tgt[:, :-1] #去掉<EOS>當作輸入
+            tgt_output = tgt[:, 1:] #去掉<BOS>當作標籤 shape{batch_size, seq_len-1}
 
             optimizer.zero_grad()
-            logits = model(src, tgt_input)
+            logits = model(src, tgt_input)  # {batch_size, seq_len-1, tgt_vocab_size}
+                                            # logits.size(-1) = {tgt_vocab_size}
+            
+            # (batch_size * (tgt_seq_len - 1), vocab_size) vs (batch_size * (tgt_seq_len - 1))
+            # n.CrossEntropyLoss 的輸入要求：
+            # 預測值（logits）：形狀為 (N, C)，其中 N 是樣本數，C 是類別數（即 vocab_size）。
+            # 目標值（tgt_output）：形狀為 (N)，其中 N 是樣本數。
             loss = criterion(logits.reshape(-1, logits.size(-1)), tgt_output.reshape(-1))
             loss.backward()
             optimizer.step()
@@ -171,9 +179,9 @@ def translate(model,src_sentence):
 
         with torch.no_grad():
             logits = model(src_tensor, tgt_tensor)
-        next_token_id = logits[0, -1, :].argmax().item()
+        next_token_id = logits[0, -1, :].argmax().item() #(batch_size, tgt_seq_len, vocab_size)
         tgt_ids.append(next_token_id)
-        if next_token_id == 2:
+        if next_token_id == 2: # 遇到<EOS>就停止
             break
     result = tgt_tokenizer.decode(tgt_ids)
     print(f"結果：{result}")
