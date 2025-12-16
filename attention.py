@@ -57,18 +57,19 @@ def scaled_dot_product_attention(q:torch.Tensor, k:torch.Tensor, v:torch.Tensor,
 # 創建填充遮罩，用於標記序列中無效的位置
 # lengths: 每個序列的有效長度
 # L: 序列的最大長度
-def make_padding_mask(lengths: torch.Tensor , L:int) -> torch.Tensor:
-    device = lengths.device
+def make_padding_mask(lengths: torch.Tensor , L:int) -> torch.Tensor: # lengths = torch.tensor([3, 5]) 表示第一個序列長度為 3，第二個序列長度為 5。
+    device = lengths.device 
+    #先生成一個範圍張量 [0, 1, 2, ..., L-1] , 然後將形狀變為 (1, L) -> [[0, 1, 2, 3, 4]]
     idxs = torch.arange(L, device=device).unsqueeze(0)
-    mask = idxs >= lengths.unsqueeze(1)
-    return mask.unsqueeze(1).unsqueeze(2)
+    mask = idxs >= lengths.unsqueeze(1) # [3, 5] -> [[3], [5]] -> [[False, False, False, True, True], [False, False, False, False, False]]
+    return mask.unsqueeze(1).unsqueeze(2) #　(B, L)　-> (B, 1, L) -> (B, 1, 1, L)
 
 # 創建因果遮罩，用於防止訪問未來的信息
 # L: 序列的長度
 # device: 運算設備，可選
 def make_causal_mask(L:int, device:Optional[torch.device]=None) -> torch.Tensor:
     mask = torch.triu(torch.ones((L,L), device=device, dtype=torch.bool), diagonal=1)
-    return mask.unsqueeze(0).unsqueeze(0)
+    return mask.unsqueeze(0).unsqueeze(0) #(L, L) -> (1, 1, L, L)
 
 # 合併多個布爾遮罩
 # masks: 多個布爾遮罩張量

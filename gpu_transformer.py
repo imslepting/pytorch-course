@@ -120,7 +120,12 @@ class Seq2SeqTransformer(nn.Module):
         # 生成目標序列的遮罩
         tgt_seq_len = tgt.size(1) # size(1) 是序列長度
         tgt_mask = self.transformer.generate_square_subsequent_mask(tgt_seq_len).to(device) 
-
+        
+        # [[ 0.  -inf -inf -inf]
+        # [ 0.   0.  -inf -inf]
+        # [ 0.   0.   0.  -inf]
+        # [ 0.   0.   0.   0. ]]
+        
         # 生成源序列和目標序列的 padding 遮罩
         src_padding_mask = (src ==0)
         tgt_padding_mask = (tgt ==0)

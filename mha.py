@@ -46,6 +46,7 @@ class MultiHeadAttention(torch.nn.Module):
 
     # 將輸入張量分割為多頭
     def _split_heads(self, x: torch.Tensor) -> torch.Tensor: # (B,L,D) -> (B,H,L,D_k) 
+        # D = H * D_k , L = 序列長度 , B = 批次大小
         B, L, D = x.shape
         x = x.view(B, L, self.num_heads, self.d_k).transpose(1, 2)
         return x
@@ -54,6 +55,8 @@ class MultiHeadAttention(torch.nn.Module):
     def _merge_heads(self, x: torch.Tensor) -> torch.Tensor: # (B,H,L,D_k) -> (B,L,D)
         B, H, L, D_k = x.shape
         x = x.transpose(1, 2).contiguous().view(B, L, H * D_k)
+        # transpose() 只改變張量的「視圖」，不改變底層記憶體佈局。
+        # contiguous() 確保記憶體是連續的，這樣 view() 才能正確重塑張量！
         return x
 
     # 前向傳播函數
@@ -67,7 +70,7 @@ class MultiHeadAttention(torch.nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None,  # 鍵的填充遮罩
         causal: bool = False,  # 是否使用因果遮罩
         need_weights: bool = True,  # 是否返回注意力權重
-        average_attn_werghts: bool = False,  # 是否平均注意力權重（拼寫錯誤修正為 average_attn_weights）
+        average_attn_weights: bool = False,  # 是否平均注意力權重（拼寫錯誤修正為 average_attn_weights）
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         B, L, D = q.shape
         assert D == self.d_model and k.shape[-1] == D and v.shape[-1] == D, "查詢、鍵和值的維度必須與模型維度一致"
@@ -118,15 +121,15 @@ class MultiHeadAttention(torch.nn.Module):
         if not need_weights:
             return out, None
 
-        if average_attn_werghts:  # 修正拼寫錯誤為 average_attn_weights
+        if average_attn_weights:  # 修正拼寫錯誤為 average_attn_weights
             attn_mean = attn.mean(dim=1)
             return out, attn_mean
         return out, attn
 
 if __name__ == "__main__":
     # 測試多頭注意力機制
-    B, L, D, H = 4, 10, 512, 8  # 批次大小、序列長度、維度、注意力頭數
+    B, L, D, H = 2, 10, 512, 8  # 批次大小、序列長度、維度、注意力頭數
     x = torch.randn(B, L, D)
     mha = MultiHeadAttention(d_model=D, num_heads=H)
-    y, w = mha(x, x, x, causal=True, need_weights=True, average_attn_werghts=True)  # 修正拼寫錯誤
-    print("y: ", y.shape, "w: ", w.shape)
+    y, w = mha(x, x, x, causal=True, need_weights=True, average_attn_weights=True)  #  q k v = x
+    print("y: ", y.shape, "\nw: ", w.shape)
